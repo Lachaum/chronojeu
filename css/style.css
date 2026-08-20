@@ -288,6 +288,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .rail-h .rail-inner > .band { flex: 1 1 0; min-width: 0; }
 #rail-top .band { transform: rotate(180deg); }
 
+/* Le tour de table fait le tour de l'écran : bas de gauche à droite, puis on
+   remonte le côté droit, puis le haut DE DROITE À GAUCHE, puis on redescend le
+   côté gauche. Sans cette inversion, les joueurs du haut sont dans le mauvais
+   ordre dès qu'ils sont deux, c'est-à-dire à partir de six joueurs. */
+#rail-top .rail-inner { flex-direction: row-reverse; }
+
 .rail-v {
   width: var(--rail-thick);
   display: flex; align-items: center; justify-content: center;

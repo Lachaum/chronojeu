@@ -172,7 +172,6 @@ exigent tous deux une véritable adresse web.
 |---|---|
 | Erreur 404 sur l'adresse | `index.html` n'est pas à la racine du dépôt |
 | Page blanche | Les dossiers `css` et `js` n'ont pas été envoyés |
-| Pas de son sur iPhone | Vérifiez le petit interrupteur latéral (mode silencieux) : il coupe le son des pages web même à plein volume. Puis utilisez le bouton « Tester le son » dans les réglages |
-| Pas de vibration sur iPhone | iOS ne propose pas la vibration aux applications web. L'écran bat en rouge à la place |
+| Pas de son sur iPhone | Vérifiez le petit interrupteur latéral (mode silencieux) : il coupe le son des pages web même à plein volume. Puis utilisez le bouton « Tester les alertes sonores » dans les réglages |
 | Les modifications n'apparaissent pas | Le numéro de version de `sw.js` n'a pas été incrémenté |
 | L'onglet Pages est introuvable | Le dépôt est privé : passez-le en public dans Settings › General › Danger Zone |

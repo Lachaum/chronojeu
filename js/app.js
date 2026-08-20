@@ -42,7 +42,6 @@
     warnSeconds: 10,
     startIndex: 0,
     sound: true,
-    vibration: true,
     wakelock: true,
     handicap: false
   };
@@ -93,6 +92,7 @@
   var rafId = null;
   var lastTapAt = 0;
   var warnedThisTurn = false;
+  var lastTickSecond = 0;   // dernière seconde égrenée par le décompte sonore
   var expiryAnnounced = {}; // modes budget : une seule alarme par joueur
   var wakeLock = null;
 
@@ -307,40 +307,27 @@
   function persistSettings() { Store.saveSettings(settings); }
 
   /**
-   * Dit franchement à l'utilisateur où en sont le son et la vibration. Sur
-   * iPhone, c'est bien plus utile qu'un interrupteur qui prétend marcher.
+   * Dit franchement à l'utilisateur où en est le son. Sur iPhone, c'est bien
+   * plus utile qu'un interrupteur qui prétend marcher.
    */
   function updateSoundStatus(afterTest) {
     var d = Sound.diagnose();
-    var parts = [];
+    var msg;
 
     if (!d.audioSupported) {
-      parts.push('<span class="no">Ce navigateur ne sait pas produire de son.</span>');
+      msg = '<span class="no">Ce navigateur ne sait pas produire de son.</span>';
     } else if (d.contextState === 'running') {
-      parts.push('<span class="ok">Son actif.</span>' +
-        (d.ios ? ' Si vous n\'entendez rien, vérifiez le petit interrupteur latéral de l\'iPhone : ChronoJeu essaie de passer outre, mais le mode silencieux peut encore le couper sur certaines versions d\'iOS.' : ''));
+      msg = '<span class="ok">Son actif.</span>' + (d.ios
+        ? ' Si vous n\'entendez rien, vérifiez le petit interrupteur latéral de l\'iPhone : ChronoJeu essaie de passer outre, mais le mode silencieux peut encore le couper sur certaines versions d\'iOS.'
+        : '');
     } else if (afterTest) {
-      parts.push('<span class="no">Le son n\'a pas pu démarrer.</span> Vérifiez le volume et le mode silencieux, puis réessayez.');
+      msg = '<span class="no">Le son n\'a pas pu démarrer.</span> Vérifiez le volume et le mode silencieux, puis réessayez.';
     } else {
-      parts.push('Touchez le bouton ci-dessus pour activer et vérifier le son.');
+      msg = 'Touchez le bouton ci-dessus pour activer et vérifier le son.';
     }
 
-    if (d.vibrationApi) {
-      parts.push('<span class="ok">Vibration disponible.</span>');
-    } else if (d.ios) {
-      parts.push('<span class="no">Vibration :</span> iOS ne la propose pas aux applications web. ChronoJeu tente un retour haptique de secours, qu\'Apple a restreint sur les versions récentes. L\'écran clignote en rouge quand le temps est écoulé, ce qui fonctionne dans tous les cas.');
-    } else {
-      parts.push('Vibration non disponible sur cet appareil.');
-    }
-
-    $('#sound-status').innerHTML = parts.join('<br>');
-
-    // L'interrupteur de vibration ne doit pas promettre ce qu'il ne peut tenir.
-    var note = $('#vibration-note');
-    if (!d.vibrationApi && d.ios) note.textContent = '— non prise en charge par iOS';
-    else if (!d.vibrationApi) note.textContent = '— indisponible ici';
-    else note.textContent = '';
-    $('#opt-vibration').disabled = !d.vibrationApi && !d.ios;
+    msg += '<br>Le test joue la sirène du chaud time, puis le décompte des cinq dernières secondes, puis l\'alarme de fin de temps.';
+    $('#sound-status').innerHTML = msg;
   }
 
   function renderSetup() {
@@ -348,7 +335,6 @@
     renderDurations();
     renderModeVisibility();
     $('#opt-sound').checked = settings.sound;
-    $('#opt-vibration').checked = settings.vibration;
     $('#opt-wakelock').checked = settings.wakelock;
     $('#opt-handicap').checked = settings.handicap;
     updateSoundStatus(false);
@@ -366,11 +352,11 @@
       });
     });
 
-    [['#opt-sound', 'sound'], ['#opt-vibration', 'vibration'], ['#opt-wakelock', 'wakelock']]
+    [['#opt-sound', 'sound'], ['#opt-wakelock', 'wakelock']]
       .forEach(function (pair) {
         $(pair[0]).addEventListener('change', function () {
           settings[pair[1]] = this.checked;
-          Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+          Sound.configure({ sound: settings.sound });
           persistSettings();
         });
       });
@@ -391,13 +377,19 @@
       // Ce clic est un vrai geste utilisateur : c'est le moment ou jamais pour
       // débloquer l'audio d'iOS.
       Sound.unlock();
-      Sound.configure({ sound: true, vibration: settings.vibration });
-      Sound.warning();
-      setTimeout(function () { Sound.timeUp(); }, 900);
+      Sound.configure({ sound: true });
+
+      var sirenMs = Sound.warning() || 1700;
+      var t = sirenMs + 250;
+      [5, 4, 3, 2, 1].forEach(function (n, i) {
+        setTimeout(function () { Sound.countdown(n); }, t + i * 700);
+      });
+      var afterCountdown = t + 5 * 700 + 200;
+      setTimeout(function () { Sound.timeUp(); }, afterCountdown);
       setTimeout(function () {
-        Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+        Sound.configure({ sound: settings.sound });
         updateSoundStatus(true);
-      }, 1400);
+      }, afterCountdown + 900);
     });
 
     $('#btn-preset-save').addEventListener('click', function () {
@@ -415,7 +407,7 @@
       var found = Store.loadPresets().filter(function (p) { return p.name === name; })[0];
       if (!found) return;
       settings = normalise(found.settings);
-      Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+      Sound.configure({ sound: settings.sound });
       renderSetup();
       persistSettings();
     });
@@ -485,6 +477,7 @@
         '<div class="band-meta"></div>';
       $('.band-name', band).textContent = p.name;
       band.setAttribute('data-side', side);
+      band.setAttribute('data-seat', i);      // place dans le tour de table
 
       // Appui long sur un bandeau : retirer / réintégrer le joueur.
       var pressTimer = null;
@@ -543,8 +536,9 @@
       engine.start();
     }
 
-    Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+    Sound.configure({ sound: settings.sound });
     warnedThisTurn = false;
+    lastTickSecond = 0;
     expiryAnnounced = {};
 
     showScreen('screen-game');
@@ -658,6 +652,21 @@
     // --- signaux sonores ---
     if (v.state === 'running') {
       if (v.isWarning && !warnedThisTurn) { warnedThisTurn = true; Sound.warning(); }
+
+      // Décompte des cinq dernières secondes : un bip par seconde, de plus en
+      // plus aigu. On ne le superpose pas à la sirène qui vient de retentir.
+      if (!v.isTimeOut) {
+        var secLeft = Math.ceil(v.remainingMs / 1000);
+        if (secLeft >= 1 && secLeft <= 5) {
+          if (lastTickSecond !== secLeft) {
+            lastTickSecond = secLeft;
+            if (!Sound.isSirenPlaying()) Sound.countdown(secLeft);
+          }
+        } else {
+          lastTickSecond = 0;
+        }
+      }
+
       if (v.isTimeOut) {
         if (v.alarmRepeats) {
           if (!Sound.isAlarmRunning()) Sound.startRepeatingAlarm();
@@ -684,6 +693,7 @@
     Sound.stopRepeatingAlarm();
     engine.pass();
     warnedThisTurn = false;
+    lastTickSecond = 0;
     Sound.pass();
     render(true);
     saveGame();
@@ -698,7 +708,7 @@
     $('#btn-undo').addEventListener('click', function (e) {
       e.stopPropagation();
       Sound.stopRepeatingAlarm();
-      if (engine.undo()) { warnedThisTurn = false; render(true); saveGame(); }
+      if (engine.undo()) { warnedThisTurn = false; lastTickSecond = 0; render(true); saveGame(); }
     });
 
     $('#btn-direction').addEventListener('click', function (e) {
@@ -933,7 +943,7 @@
     $('#btn-resume').onclick = function () {
       Sound.unlock();
       settings = normalise(saved.settings);
-      Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+      Sound.configure({ sound: settings.sound });
       // La partie reprend en pause : personne ne perd de temps pendant qu'on
       // se réinstalle autour de la table.
       snap.state = 'paused';
@@ -952,7 +962,7 @@
 
   function init() {
     settings = normalise(Store.loadSettings(null));
-    Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+    Sound.configure({ sound: settings.sound });
     // Le moindre toucher, où qu'il soit, relance le son : iOS suspend le
     // contexte audio dès que l'application passe en arrière-plan.
     Sound.watchGestures();

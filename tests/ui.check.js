@@ -263,9 +263,122 @@ function check(label, condition, detail) {
     Math.round(land.center.width) + '×' + Math.round(land.center.height));
   await page2.screenshot({ path: path.join(SHOTS, '11-paysage.png') });
 
+  // ================= Placement des joueurs autour de l'écran =================
+  // Test géométrique : on relève la position réelle de chaque bandeau à l'écran
+  // et on vérifie que les joueurs se suivent bien en tournant autour du centre,
+  // sans jamais se croiser. C'est ce qui attrape une tranche remplie à l'envers.
+  const ringPage = await ctx.newPage();
+  ringPage.on('pageerror', (e) => errors.push('pageerror(cercle): ' + e.message));
+  await ringPage.goto(url, { waitUntil: 'networkidle' });
+  await ringPage.waitForTimeout(300);
+  if (await ringPage.isVisible('#btn-discard')) await ringPage.click('#btn-discard');
+
+  function ringIsOrdered(angles) {
+    const n = angles.length;
+    const deltas = [];
+    for (let i = 0; i < n; i++) {
+      let d = angles[(i + 1) % n] - angles[i];
+      while (d <= -Math.PI) d += 2 * Math.PI;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      deltas.push(d);
+    }
+    const oneWay = deltas.every((d) => d > 0.05) || deltas.every((d) => d < -0.05);
+    const turn = Math.abs(deltas.reduce((a, b) => a + b, 0));
+    return oneWay && Math.abs(turn - 2 * Math.PI) < 0.35;
+  }
+
+  for (const n of [4, 5, 6, 7, 8]) {
+    // ramener le compteur à n
+    const current = (await ringPage.$$('#player-list .player-row')).length;
+    for (let i = current; i < n; i++) { await ringPage.click('#count-plus'); }
+    for (let i = current; i > n; i--) { await ringPage.click('#count-minus'); }
+    await ringPage.waitForTimeout(120);
+    await ringPage.click('#btn-start');
+    await ringPage.waitForTimeout(450);
+
+    const seats = await ringPage.evaluate(() => {
+      const t = document.getElementById('table').getBoundingClientRect();
+      const cx = t.left + t.width / 2, cy = t.top + t.height / 2;
+      return Array.from(document.querySelectorAll('.band'))
+        .sort((a, b) => (+a.dataset.seat) - (+b.dataset.seat))
+        .map((b) => {
+          const r = b.getBoundingClientRect();
+          return {
+            seat: +b.dataset.seat,
+            side: b.dataset.side,
+            angle: Math.atan2((r.top + r.height / 2) - cy, (r.left + r.width / 2) - cx)
+          };
+        });
+    });
+
+    check(`${n} joueurs : le tour de table suit bien le tour de l'écran`,
+      seats.length === n && ringIsOrdered(seats.map((s) => s.angle)),
+      seats.map((s) => s.seat + ':' + s.side + '@' + Math.round(s.angle * 57.3) + '°').join(' '));
+
+    if (n === 6) await ringPage.screenshot({ path: path.join(SHOTS, '14-cercle-6-joueurs.png') });
+    if (n === 8) await ringPage.screenshot({ path: path.join(SHOTS, '15-cercle-8-joueurs.png') });
+
+    await ringPage.click('#btn-menu'); await ringPage.waitForTimeout(150);
+    await ringPage.click('#btn-finish'); await ringPage.waitForTimeout(300);
+    await ringPage.click('#btn-new'); await ringPage.waitForTimeout(200);
+  }
+  await ringPage.close();
+
+  // ======================= Sirène et décompte sonore =========================
+  const soundPage = await ctx.newPage();
+  soundPage.on('pageerror', (e) => errors.push('pageerror(son): ' + e.message));
+  await soundPage.goto(url, { waitUntil: 'networkidle' });
+  await soundPage.waitForTimeout(300);
+  if (await soundPage.isVisible('#btn-discard')) await soundPage.click('#btn-discard');
+
+  // On observe les appels réels du moteur sonore.
+  await soundPage.evaluate(() => {
+    window.__ticks = [];
+    window.__sirens = 0;
+    const S = window.ChronoSound;
+    const oc = S.countdown, ow = S.warning;
+    S.countdown = function (n) { window.__ticks.push(n); return oc.call(S, n); };
+    S.warning = function () { window.__sirens++; return ow.call(S); };
+  });
+
+  check('l\'alerte de chaud time est une sirène, pas un bip',
+    await soundPage.evaluate(() => {
+      window.ChronoSound.unlock();
+      const ms = window.ChronoSound.warning();
+      // Une sirène deux-tons dure plus d'une seconde et se signale comme active.
+      return ms > 1000 && window.ChronoSound.isSirenPlaying();
+    }));
+
+  await soundPage.evaluate(() => { window.__ticks = []; window.__sirens = 0; });
+  // Le mode est mémorisé d'une session à l'autre : on le fixe explicitement,
+  // sinon un tour « avec banque » durerait plusieurs minutes et le test
+  // mesurerait le vide.
+  await soundPage.click('.mode[data-mode="perTurn"]');
+  await soundPage.waitForTimeout(150);
+  await soundPage.fill('.dur[data-key="turn"] .dur-min', '0');
+  await soundPage.fill('.dur[data-key="turn"] .dur-sec', '8');
+  await soundPage.fill('.dur[data-key="warn"] .dur-min', '0');
+  await soundPage.fill('.dur[data-key="warn"] .dur-sec', '7');
+  await soundPage.click('#btn-start');
+  await soundPage.waitForTimeout(9200);
+
+  const ticks = await soundPage.evaluate(() => window.__ticks);
+  const sirens = await soundPage.evaluate(() => window.__sirens);
+  check('la sirène retentit une seule fois à l\'entrée du chaud time',
+    sirens === 1, 'sirènes = ' + sirens);
+  check('les cinq dernières secondes sont égrenées : 5, 4, 3, 2, 1',
+    JSON.stringify(ticks) === '[5,4,3,2,1]', 'obtenu ' + JSON.stringify(ticks));
+
+  // Chaque seconde ne doit sonner qu'une fois, malgré les 60 images par seconde.
+  await soundPage.evaluate(() => { window.__ticks = []; });
+  await soundPage.tap('#tap-zone');
+  await soundPage.waitForTimeout(9200);
+  const ticks2 = await soundPage.evaluate(() => window.__ticks);
+  check('le décompte repart proprement au tour suivant',
+    JSON.stringify(ticks2) === '[5,4,3,2,1]', 'obtenu ' + JSON.stringify(ticks2));
+  await soundPage.close();
+
   // ------------------------------------------------- simulation d'un iPhone
-  // On rejoue le parcours avec l'identité d'un iPhone et sans API Vibration,
-  // pour vérifier que ChronoJeu le dit franchement et compense visuellement.
   const ctxIOS = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
@@ -274,34 +387,28 @@ function check(label, condition, detail) {
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 ' +
                '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'
   });
-  await ctxIOS.addInitScript(() => {
-    // Safari sur iPhone n'expose pas l'API Vibration.
-    try { delete Navigator.prototype.vibrate; } catch (e) { /* ignoré */ }
-    Object.defineProperty(navigator, 'vibrate', { get: () => undefined, configurable: true });
-  });
   const ios = await ctxIOS.newPage();
   ios.on('pageerror', (e) => errors.push('pageerror(iphone): ' + e.message));
   ios.on('console', (m) => { if (m.type() === 'error') errors.push('console(iphone): ' + m.text()); });
   await ios.goto(url, { waitUntil: 'networkidle' });
   await ios.waitForTimeout(400);
 
-  check('iPhone : l\'API Vibration est bien absente',
-    await ios.evaluate(() => typeof navigator.vibrate !== 'function'));
   check('iPhone : le bouton de test du son est présent', await ios.isVisible('#btn-test-sound'));
-  check('iPhone : l\'absence de vibration est annoncée',
-    (await ios.textContent('#vibration-note')).indexOf('iOS') !== -1,
-    'note = « ' + (await ios.textContent('#vibration-note')) + ' »');
-  check('iPhone : le diagnostic explique la situation',
-    (await ios.textContent('#sound-status')).indexOf('iOS ne la propose pas') !== -1);
+  check('iPhone : plus aucun réglage de vibration',
+    (await ios.$$('#opt-vibration')).length === 0);
+  check('iPhone : l\'interrupteur silencieux est signalé',
+    (await ios.textContent('#sound-status')).indexOf('interrupteur') !== -1 ||
+    (await ios.textContent('#sound-status')).indexOf('Touchez le bouton') !== -1);
 
   await ios.click('#btn-test-sound');
-  await ios.waitForTimeout(1700);
+  await ios.waitForTimeout(600);
   const iosDiag = await ios.evaluate(() => window.ChronoSound.diagnose());
   check('iPhone : le test débloque le contexte audio',
     iosDiag.unlocked === true && iosDiag.contextState === 'running',
     JSON.stringify(iosDiag));
   check('iPhone : le son silencieux d\'amorçage est bien inséré',
     await ios.evaluate(() => !!document.querySelector('audio[playsinline]')));
+  await ios.waitForTimeout(6200);
   check('iPhone : le diagnostic confirme le son actif',
     (await ios.textContent('#sound-status')).indexOf('Son actif') !== -1);
   await ios.screenshot({ path: path.join(SHOTS, '12-iphone-diagnostic.png'), fullPage: true });
@@ -320,16 +427,10 @@ function check(label, condition, detail) {
       return s.classList.contains('is-timeout') &&
              getComputedStyle(f).animationName === 'alarmflash';
     }));
-  check('iPhone : le retour haptique de secours est tenté',
-    await ios.evaluate(() => !!document.querySelector('input[switch][type="checkbox"]')));
   await ios.screenshot({ path: path.join(SHOTS, '13-iphone-alarme.png') });
 
   // ---------------------------------------------------------------- conclusion
-  // Chromium journalise un avertissement quand navigator.vibrate est appelé
-  // avant qu'il ait enregistré un vrai tap. C'est une information du navigateur,
-  // pas un défaut : l'appel est protégé et, sur un téléphone, l'utilisateur a
-  // forcément touché l'écran avant que le chrono ne sonne.
-  const realErrors = errors.filter((e) => e.indexOf('Blocked call to navigator.vibrate') === -1);
+  const realErrors = errors.slice();
   check('aucune erreur JavaScript', realErrors.length === 0, realErrors.join(' | '));
 
   await browser.close();

@@ -133,7 +133,7 @@
         <label>Chaud time <span class="muted">— alerte de fin de temps</span></label>
         <div class="dur" data-key="warn"></div>
         <div class="chips" data-chips="warn" data-values="5,10,15,30,60"></div>
-        <p class="hint">Quand il reste ce temps-là, l'horloge passe au rouge et un signal sonore retentit.</p>
+        <p class="hint">Quand il reste ce temps-là, l'horloge passe au rouge et une sirène retentit. Les cinq dernières secondes sont ensuite égrenées par un décompte sonore.</p>
       </div>
     </section>
 
@@ -143,10 +143,6 @@
       <label class="row row-between switch-row">
         <span>Son</span>
         <input type="checkbox" id="opt-sound" class="switch" checked>
-      </label>
-      <label class="row row-between switch-row" id="row-vibration">
-        <span>Vibration <span class="muted" id="vibration-note"></span></span>
-        <input type="checkbox" id="opt-vibration" class="switch" checked>
       </label>
       <label class="row row-between switch-row">
         <span>Garder l'écran allumé</span>
@@ -162,7 +158,7 @@
       </div>
 
       <div class="sound-test">
-        <button type="button" id="btn-test-sound" class="btn btn-ghost btn-sm">🔔 Tester le son et la vibration</button>
+        <button type="button" id="btn-test-sound" class="btn btn-ghost btn-sm">🔔 Tester les alertes sonores</button>
         <p class="hint" id="sound-status"></p>
       </div>
     </section>
@@ -231,8 +227,8 @@
   </div>
 
   <!-- Alarme visuelle : l'écran bat en rouge quand le temps est écoulé.
-       Indispensable sur iPhone, où la vibration n'existe pas et où le son
-       peut être coupé par l'interrupteur latéral. -->
+       Indispensable sur iPhone, où le son peut être coupé par l'interrupteur
+       latéral sans que l'application en soit avertie. -->
   <div class="alarm-flash" id="alarm-flash" aria-hidden="true"></div>
 
   <!-- Voile de pause : bloque tout toucher accidentel -->
