@@ -101,8 +101,37 @@ plusieurs heures en quelques millisecondes et de vérifier que les totaux tomben
 juste à la milliseconde.
 
 **Les sons sont synthétisés**, pas téléchargés : aucun fichier audio, donc une
-application minuscule qui fonctionne hors ligne sans rien récupérer. Sur iPhone,
-le son est débloqué au premier toucher de l'écran, comme Safari l'exige.
+application minuscule qui fonctionne hors ligne sans rien récupérer.
+
+---
+
+## Son et vibration sur iPhone
+
+Deux limites d'iOS méritent d'être connues, parce qu'elles ne viennent pas de
+ChronoJeu.
+
+**Le son.** Safari refuse tout son tant que l'utilisateur n'a pas touché
+l'écran : ChronoJeu débloque donc l'audio au premier toucher. Plus gênant,
+**le petit interrupteur latéral de l'iPhone coupe le son des pages web**, même
+avec le volume à fond. ChronoJeu applique le contournement connu — jouer en
+parallèle un son silencieux dans une balise `<audio>`, ce qui fait basculer la
+session audio d'iOS en mode « lecture » — mais si vous n'entendez rien,
+**vérifiez cet interrupteur en premier**.
+
+Le bouton **« Tester le son et la vibration »**, dans les réglages, joue les
+deux alertes et affiche l'état réel de l'audio.
+
+**La vibration.** Safari sur iPhone n'expose pas l'API Vibration aux
+applications web : il n'existe aucun moyen propre de faire vibrer le téléphone
+depuis une page. ChronoJeu tente un contournement haptique connu (basculer un
+`<input type="checkbox" switch>`), qu'Apple a restreint à partir d'iOS 26.5 —
+autant dire qu'il ne faut pas compter dessus.
+
+C'est pourquoi **l'alarme est aussi visuelle** : l'écran entier bat en rouge
+quand le temps est écoulé. C'est le seul signal sur lequel on puisse compter
+partout, iPhone en mode silencieux compris.
+
+Sur Android, son et vibration fonctionnent normalement.
 
 ---
 

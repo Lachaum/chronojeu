@@ -144,8 +144,8 @@
         <span>Son</span>
         <input type="checkbox" id="opt-sound" class="switch" checked>
       </label>
-      <label class="row row-between switch-row">
-        <span>Vibration</span>
+      <label class="row row-between switch-row" id="row-vibration">
+        <span>Vibration <span class="muted" id="vibration-note"></span></span>
         <input type="checkbox" id="opt-vibration" class="switch" checked>
       </label>
       <label class="row row-between switch-row">
@@ -159,6 +159,11 @@
       <div class="row row-between">
         <label for="start-player">Premier joueur</label>
         <select id="start-player" class="select"></select>
+      </div>
+
+      <div class="sound-test">
+        <button type="button" id="btn-test-sound" class="btn btn-ghost btn-sm">🔔 Tester le son et la vibration</button>
+        <p class="hint" id="sound-status"></p>
       </div>
     </section>
 
@@ -224,6 +229,11 @@
     </div>
     <div class="rail rail-h" id="rail-bottom"><div class="rail-inner"></div></div>
   </div>
+
+  <!-- Alarme visuelle : l'écran bat en rouge quand le temps est écoulé.
+       Indispensable sur iPhone, où la vibration n'existe pas et où le son
+       peut être coupé par l'interrupteur latéral. -->
+  <div class="alarm-flash" id="alarm-flash" aria-hidden="true"></div>
 
   <!-- Voile de pause : bloque tout toucher accidentel -->
   <div class="overlay hidden" id="pause-overlay">

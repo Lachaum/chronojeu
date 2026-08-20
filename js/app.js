@@ -306,6 +306,43 @@
 
   function persistSettings() { Store.saveSettings(settings); }
 
+  /**
+   * Dit franchement à l'utilisateur où en sont le son et la vibration. Sur
+   * iPhone, c'est bien plus utile qu'un interrupteur qui prétend marcher.
+   */
+  function updateSoundStatus(afterTest) {
+    var d = Sound.diagnose();
+    var parts = [];
+
+    if (!d.audioSupported) {
+      parts.push('<span class="no">Ce navigateur ne sait pas produire de son.</span>');
+    } else if (d.contextState === 'running') {
+      parts.push('<span class="ok">Son actif.</span>' +
+        (d.ios ? ' Si vous n\'entendez rien, vérifiez le petit interrupteur latéral de l\'iPhone : ChronoJeu essaie de passer outre, mais le mode silencieux peut encore le couper sur certaines versions d\'iOS.' : ''));
+    } else if (afterTest) {
+      parts.push('<span class="no">Le son n\'a pas pu démarrer.</span> Vérifiez le volume et le mode silencieux, puis réessayez.');
+    } else {
+      parts.push('Touchez le bouton ci-dessus pour activer et vérifier le son.');
+    }
+
+    if (d.vibrationApi) {
+      parts.push('<span class="ok">Vibration disponible.</span>');
+    } else if (d.ios) {
+      parts.push('<span class="no">Vibration :</span> iOS ne la propose pas aux applications web. ChronoJeu tente un retour haptique de secours, qu\'Apple a restreint sur les versions récentes. L\'écran clignote en rouge quand le temps est écoulé, ce qui fonctionne dans tous les cas.');
+    } else {
+      parts.push('Vibration non disponible sur cet appareil.');
+    }
+
+    $('#sound-status').innerHTML = parts.join('<br>');
+
+    // L'interrupteur de vibration ne doit pas promettre ce qu'il ne peut tenir.
+    var note = $('#vibration-note');
+    if (!d.vibrationApi && d.ios) note.textContent = '— non prise en charge par iOS';
+    else if (!d.vibrationApi) note.textContent = '— indisponible ici';
+    else note.textContent = '';
+    $('#opt-vibration').disabled = !d.vibrationApi && !d.ios;
+  }
+
   function renderSetup() {
     renderPlayers();
     renderDurations();
@@ -314,6 +351,7 @@
     $('#opt-vibration').checked = settings.vibration;
     $('#opt-wakelock').checked = settings.wakelock;
     $('#opt-handicap').checked = settings.handicap;
+    updateSoundStatus(false);
   }
 
   function bindSetup() {
@@ -347,6 +385,19 @@
     $('#start-player').addEventListener('change', function () {
       settings.startIndex = parseInt(this.value, 10) || 0;
       persistSettings();
+    });
+
+    $('#btn-test-sound').addEventListener('click', function () {
+      // Ce clic est un vrai geste utilisateur : c'est le moment ou jamais pour
+      // débloquer l'audio d'iOS.
+      Sound.unlock();
+      Sound.configure({ sound: true, vibration: settings.vibration });
+      Sound.warning();
+      setTimeout(function () { Sound.timeUp(); }, 900);
+      setTimeout(function () {
+        Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+        updateSoundStatus(true);
+      }, 1400);
     });
 
     $('#btn-preset-save').addEventListener('click', function () {
@@ -902,6 +953,9 @@
   function init() {
     settings = normalise(Store.loadSettings(null));
     Sound.configure({ sound: settings.sound, vibration: settings.vibration });
+    // Le moindre toucher, où qu'il soit, relance le son : iOS suspend le
+    // contexte audio dès que l'application passe en arrière-plan.
+    Sound.watchGestures();
 
     buildDurationFields();
     bindSetup();
@@ -913,7 +967,20 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function () { /* hors ligne indisponible */ });
+        // updateViaCache: 'none' garantit que le navigateur va rechercher les
+        // nouvelles versions au lieu de servir un sw.js gardé en mémoire.
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+          .then(function (reg) { try { reg.update(); } catch (e) { /* ignoré */ } })
+          .catch(function () { /* hors ligne indisponible */ });
+      });
+      // Quand une nouvelle version est publiée, on recharge — mais jamais au
+      // milieu d'une partie.
+      var reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloaded) return;
+        if (!$('#screen-setup').classList.contains('is-active')) return;
+        reloaded = true;
+        window.location.reload();
       });
     }
   }

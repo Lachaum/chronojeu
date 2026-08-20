@@ -171,6 +171,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .switch:checked::after { transform: translateX(20px); }
 .switch-row { cursor: pointer; }
 
+.sound-test { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sound-test .btn { width: 100%; }
+#sound-status { margin-top: 9px; }
+#sound-status .ok  { color: var(--ok); }
+#sound-status .no  { color: var(--warn); }
+
 /* Liste des joueurs */
 .player-list { list-style: none; display: grid; gap: 8px; margin-top: 12px; }
 .player-row { display: flex; align-items: center; gap: 8px; }
@@ -387,6 +393,20 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   0%, 49%  { background: #7a1216; }
   50%,100% { background: #33070a; }
 }
+
+/* Alarme visuelle plein écran : le seul signal sur lequel on peut compter
+   partout, iPhone en mode silencieux compris. */
+.alarm-flash {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 15;
+  background: #ff2d30; opacity: 0;
+}
+#screen-game.is-timeout .alarm-flash { animation: alarmflash .9s ease-in-out infinite; }
+@keyframes alarmflash { 0%, 100% { opacity: 0; } 50% { opacity: .3; } }
+
+/* En chaud time, un battement bien plus discret : on prévient, on n'affole pas. */
+#screen-game.is-warning:not(.is-timeout) .alarm-flash { animation: warnflash 1.1s ease-in-out infinite; }
+@keyframes warnflash { 0%, 100% { opacity: 0; } 50% { opacity: .07; } }
 
 /* Voiles et menus */
 .overlay {

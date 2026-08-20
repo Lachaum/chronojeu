@@ -106,16 +106,29 @@ la première visite effectuée.
 
 ---
 
-## Modifier l'application plus tard
+## Remplacer les fichiers par une nouvelle version
+
+Si vous avez déjà publié ChronoJeu et que vous recevez une version corrigée :
+
+1. Dans le dépôt, allez dans **Add file › Upload files**.
+2. Glissez le **contenu** du nouveau dossier `chronojeu`, comme à l'étape 2.
+   GitHub remplace automatiquement les fichiers portant le même nom.
+3. **Commit changes**.
+4. Sur le téléphone, fermez complètement ChronoJeu (glissez-la hors de
+   l'écran des applications) puis rouvrez-la **deux fois**. La première
+   ouverture télécharge la nouvelle version, la seconde l'affiche.
+
+> Chaque version livrée porte un numéro dans `sw.js` (`chronojeu-v1`,
+> `chronojeu-v2`…). C'est ce numéro qui indique aux téléphones qu'ils doivent
+> se mettre à jour. Si vous modifiez vous-même un fichier, pensez à
+> l'incrémenter, sinon les téléphones continueront d'afficher l'ancienne
+> version gardée en mémoire pour le mode hors connexion.
+
+## Modifier l'application vous-même
 
 1. Sur GitHub, ouvrez le fichier à modifier et cliquez sur le crayon **✏️**.
 2. Faites vos changements, puis **Commit changes**.
-3. **Important** : ouvrez `sw.js` et incrémentez le numéro de version, par
-   exemple `'chronojeu-v1'` → `'chronojeu-v2'`.
-
-Cette dernière étape est ce qui force les téléphones à télécharger la nouvelle
-version. Sans elle, ils continuent d'afficher l'ancienne, gardée en mémoire pour
-le fonctionnement hors connexion.
+3. **Important** : ouvrez `sw.js` et incrémentez le numéro de version.
 
 ---
 
@@ -159,6 +172,7 @@ exigent tous deux une véritable adresse web.
 |---|---|
 | Erreur 404 sur l'adresse | `index.html` n'est pas à la racine du dépôt |
 | Page blanche | Les dossiers `css` et `js` n'ont pas été envoyés |
-| Pas de son sur iPhone | Normal au tout premier lancement : le son se débloque au premier toucher de l'écran |
+| Pas de son sur iPhone | Vérifiez le petit interrupteur latéral (mode silencieux) : il coupe le son des pages web même à plein volume. Puis utilisez le bouton « Tester le son » dans les réglages |
+| Pas de vibration sur iPhone | iOS ne propose pas la vibration aux applications web. L'écran bat en rouge à la place |
 | Les modifications n'apparaissent pas | Le numéro de version de `sw.js` n'a pas été incrémenté |
 | L'onglet Pages est introuvable | Le dépôt est privé : passez-le en public dans Settings › General › Danger Zone |

@@ -11,7 +11,7 @@
  */
 'use strict';
 
-var CACHE_VERSION = 'chronojeu-v1';
+var CACHE_VERSION = 'chronojeu-v2';
 
 var ASSETS = [
   './',

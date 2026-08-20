@@ -263,8 +263,74 @@ function check(label, condition, detail) {
     Math.round(land.center.width) + '×' + Math.round(land.center.height));
   await page2.screenshot({ path: path.join(SHOTS, '11-paysage.png') });
 
+  // ------------------------------------------------- simulation d'un iPhone
+  // On rejoue le parcours avec l'identité d'un iPhone et sans API Vibration,
+  // pour vérifier que ChronoJeu le dit franchement et compense visuellement.
+  const ctxIOS = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 ' +
+               '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'
+  });
+  await ctxIOS.addInitScript(() => {
+    // Safari sur iPhone n'expose pas l'API Vibration.
+    try { delete Navigator.prototype.vibrate; } catch (e) { /* ignoré */ }
+    Object.defineProperty(navigator, 'vibrate', { get: () => undefined, configurable: true });
+  });
+  const ios = await ctxIOS.newPage();
+  ios.on('pageerror', (e) => errors.push('pageerror(iphone): ' + e.message));
+  ios.on('console', (m) => { if (m.type() === 'error') errors.push('console(iphone): ' + m.text()); });
+  await ios.goto(url, { waitUntil: 'networkidle' });
+  await ios.waitForTimeout(400);
+
+  check('iPhone : l\'API Vibration est bien absente',
+    await ios.evaluate(() => typeof navigator.vibrate !== 'function'));
+  check('iPhone : le bouton de test du son est présent', await ios.isVisible('#btn-test-sound'));
+  check('iPhone : l\'absence de vibration est annoncée',
+    (await ios.textContent('#vibration-note')).indexOf('iOS') !== -1,
+    'note = « ' + (await ios.textContent('#vibration-note')) + ' »');
+  check('iPhone : le diagnostic explique la situation',
+    (await ios.textContent('#sound-status')).indexOf('iOS ne la propose pas') !== -1);
+
+  await ios.click('#btn-test-sound');
+  await ios.waitForTimeout(1700);
+  const iosDiag = await ios.evaluate(() => window.ChronoSound.diagnose());
+  check('iPhone : le test débloque le contexte audio',
+    iosDiag.unlocked === true && iosDiag.contextState === 'running',
+    JSON.stringify(iosDiag));
+  check('iPhone : le son silencieux d\'amorçage est bien inséré',
+    await ios.evaluate(() => !!document.querySelector('audio[playsinline]')));
+  check('iPhone : le diagnostic confirme le son actif',
+    (await ios.textContent('#sound-status')).indexOf('Son actif') !== -1);
+  await ios.screenshot({ path: path.join(SHOTS, '12-iphone-diagnostic.png'), fullPage: true });
+
+  // alarme visuelle, seul signal fiable sur iPhone
+  await ios.fill('.dur[data-key="turn"] .dur-min', '0');
+  await ios.fill('.dur[data-key="turn"] .dur-sec', '3');
+  await ios.fill('.dur[data-key="warn"] .dur-min', '0');
+  await ios.fill('.dur[data-key="warn"] .dur-sec', '2');
+  await ios.click('#btn-start');
+  await ios.waitForTimeout(4200);
+  check('iPhone : le temps écoulé déclenche l\'alarme visuelle',
+    await ios.evaluate(() => {
+      const s = document.getElementById('screen-game');
+      const f = document.getElementById('alarm-flash');
+      return s.classList.contains('is-timeout') &&
+             getComputedStyle(f).animationName === 'alarmflash';
+    }));
+  check('iPhone : le retour haptique de secours est tenté',
+    await ios.evaluate(() => !!document.querySelector('input[switch][type="checkbox"]')));
+  await ios.screenshot({ path: path.join(SHOTS, '13-iphone-alarme.png') });
+
   // ---------------------------------------------------------------- conclusion
-  check('aucune erreur JavaScript', errors.length === 0, errors.join(' | '));
+  // Chromium journalise un avertissement quand navigator.vibrate est appelé
+  // avant qu'il ait enregistré un vrai tap. C'est une information du navigateur,
+  // pas un défaut : l'appel est protégé et, sur un téléphone, l'utilisateur a
+  // forcément touché l'écran avant que le chrono ne sonne.
+  const realErrors = errors.filter((e) => e.indexOf('Blocked call to navigator.vibrate') === -1);
+  check('aucune erreur JavaScript', realErrors.length === 0, realErrors.join(' | '));
 
   await browser.close();
   server.close();
