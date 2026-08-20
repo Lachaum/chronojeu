@@ -1,0 +1,16 @@
+# Captures produites par tests/ui.check.js
+tests/shots/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Node (seulement si vous installez Playwright pour les contrôles d'interface)
+node_modules/
+package-lock.json

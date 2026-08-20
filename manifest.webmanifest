@@ -1,0 +1,19 @@
+{
+  "name": "ChronoJeu — l'horloge des jeux de société",
+  "short_name": "ChronoJeu",
+  "description": "Une horloge d'échecs pour les jeux de société, de 2 à 8 joueurs. Quatre modes de temps, chaud time sonore et statistiques de fin de partie.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1117",
+  "theme_color": "#0e1117",
+  "categories": ["games", "utilities"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
